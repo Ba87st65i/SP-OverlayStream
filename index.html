@@ -46,7 +46,7 @@
   /* Kopf mit Bergsilhouette */
   .head { padding-top: 14px; padding-bottom: 12px; }
   .mountains { position: absolute; left: 0; right: 0; top: 0; height: 100%; opacity: .22; pointer-events: none; }
-  .head-row { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 4px; }
+  .head-row { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .timer { font-size: 34px; line-height: 1; color: var(--snow); text-shadow: 0 2px 0 var(--ink); }
   .timer.paused { color: var(--muted); }
   .sub { font-size: 12px; color: var(--muted); }
@@ -139,11 +139,9 @@
         <path d="M0 100 L0 70 L40 38 L70 58 L115 18 L150 50 L180 30 L225 62 L265 24 L300 52 L340 34 L340 100 Z" fill="#ffffff"/>
         <path d="M115 18 L128 30 L120 33 L108 28 Z M265 24 L278 37 L268 38 L255 33 Z M40 38 L50 47 L42 49 L32 45 Z" fill="#ffffff"/>
       </svg>
-      <div class="eyebrow" style="position:relative">South Park · Fractured But Whole</div>
       <div class="head-row" id="timerRow">
         <div>
-          <div class="sub">Projektzeit <span class="pause-pill hidden" id="pausePill">PAUSE</span></div>
-          <div class="timer display" id="tTotal">0:00:00</div>
+          <div style="display:flex;align-items:center;gap:8px"><div class="timer display" id="tTotal">0:00:00</div><span class="pause-pill hidden" id="pausePill">PAUSE</span></div>
         </div>
         <div class="sub" id="sessionWrap" style="text-align:right">Heute<br><b id="tSession">0:00:00</b></div>
       </div>
