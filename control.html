@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overlay Steuerung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f131c; --card: #1a2131; --card-2: #232c40; --line: #2f3a52;
+    --text: #eef1f7; --muted: #9aa4ba; --paper: #f3ead6;
+    --orange: #f28c28; --green: #5fb84a; --red: #e04a3a; --yellow: #f6c445; --blue: #3b7dd8;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: Rubik, system-ui, sans-serif; font-size: 14px; }
+  .display { font-family: 'Luckiest Guy', Rubik, sans-serif; letter-spacing: .5px; font-weight: 400; }
+  header { position: sticky; top: 0; z-index: 5; background: rgba(15,19,28,.92); backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1180px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .bar h1 { font-size: 20px; margin: 0; color: var(--paper); }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+  .status i { width: 9px; height: 9px; border-radius: 50%; background: var(--red); }
+  .status.on i { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .spacer { flex: 1; }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .card.wide { grid-column: 1 / -1; }
+  .card h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .card h2 .right { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); }
+  button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--card-2); color: var(--text); border-radius: 8px; padding: 8px 12px; transition: background .15s, transform .05s; }
+  button:hover { background: #2c3750; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--orange); border-color: var(--orange); color: #1b1004; font-weight: 700; }
+  button.danger { color: #ffb3a8; border-color: #5a2a26; }
+  button.ghost { background: transparent; }
+  input, select { font: inherit; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%; }
+  label.f { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+
+  .timer-big { font-size: 40px; line-height: 1; color: var(--paper); font-variant-numeric: tabular-nums; }
+  .timer-sub { color: var(--muted); margin: 4px 0 12px; }
+  .counter { display: flex; align-items: center; gap: 10px; background: var(--card-2); border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+  .counter .name { flex: 1; font-weight: 500; }
+  .counter .num { font-size: 30px; min-width: 60px; text-align: center; color: var(--paper); }
+  .counter button { width: 44px; height: 44px; font-size: 20px; padding: 0; }
+  .counter button.plus { background: var(--orange); border-color: var(--orange); color: #1b1004; font-weight: 700; }
+  .hint { font-size: 12px; color: var(--muted); }
+  kbd { background: var(--card-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; font-size: 11px; }
+
+  .progress { height: 8px; background: var(--card-2); border-radius: 99px; overflow: hidden; margin: 4px 0 10px; }
+  .progress > div { height: 100%; background: var(--orange); transition: width .4s; }
+  .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; max-height: 520px; overflow: auto; padding-right: 4px; }
+  .ach { display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 9px 10px; width: 100%; }
+  .ach .box { width: 20px; height: 20px; border-radius: 5px; border: 2px solid var(--muted); flex: none; display: grid; place-items: center; font-size: 13px; margin-top: 1px; }
+  .ach.got { background: rgba(95,184,74,.13); border-color: rgba(95,184,74,.45); }
+  .ach.got .box { background: var(--green); border-color: var(--green); color: #0d1a0a; font-weight: 700; }
+  .ach .nm { font-weight: 500; }
+  .ach .ds { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .ach .when { font-size: 11px; color: var(--green); margin-top: 3px; }
+  .pill { font-size: 10.5px; padding: 1px 6px; border-radius: 99px; background: rgba(246,196,69,.15); color: var(--yellow); margin-left: 4px; white-space: nowrap; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; background: transparent; padding: 6px 10px; font-size: 13px; }
+  .seg button.on { background: var(--card-2); color: var(--orange); font-weight: 700; }
+
+  .coll-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .coll-tabs button.on { border-color: var(--orange); color: var(--orange); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: 6px; }
+  .tiles.named { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  .tile { padding: 10px 0; font-variant-numeric: tabular-nums; }
+  .tiles.named .tile { padding: 10px; }
+  .tile.got { background: var(--green); border-color: var(--green); color: #0d1a0a; font-weight: 700; }
+
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+  .tg { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 0; }
+  .tg input { width: 18px; height: 18px; accent-color: var(--orange); }
+  .pos { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; width: 140px; }
+  .pos button.on { border-color: var(--orange); color: var(--orange); }
+
+  #setup { max-width: 460px; margin: 60px auto; line-height: 1.5; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(120px); background: var(--card-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; transition: transform .3s; z-index: 10; }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  .demo-banner { background: rgba(246,196,69,.12); color: var(--yellow); font-size: 12.5px; padding: 6px 16px; text-align: center; }
+  @media (max-width: 420px) { main { grid-template-columns: 1fr; } .toggles { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <div id="demoBanner" class="demo-banner" hidden>Demo-Modus: Änderungen bleiben in diesem Browser. Für den Stream Firebase in <code>js/config.js</code> eintragen.</div>
+  <div class="bar">
+    <h1 class="display">Overlay-Steuerung</h1>
+    <div class="status" id="status"><i></i><span>verbinde…</span></div>
+    <div class="spacer"></div>
+    <button class="ghost" id="copyLink">Overlay-Link kopieren</button>
+    <button class="ghost" id="openOverlay">Overlay öffnen</button>
+  </div>
+</header>
+
+<section id="setup" class="card" hidden>
+  <h2>Ersteinrichtung</h2>
+  <p>Für die Verbindung braucht das Overlay einen geheimen Schlüssel. Er steht nur in deinem Steuerungs-Link und in Kahris OBS-Link, nicht im öffentlichen Code.</p>
+  <button class="primary" id="makeKey">Schlüssel erzeugen &amp; starten</button>
+  <p class="hint" style="margin-top:10px">Danach den Link dieser Seite als Lesezeichen speichern. Wer den Schlüssel kennt, kann das Overlay steuern, also nur an Kahri (für OBS) weitergeben.</p>
+</section>
+
+<main id="app" hidden>
+  <!-- Timer -->
+  <section class="card">
+    <h2>Timer</h2>
+    <div class="timer-big display" id="tTotal">0:00:00</div>
+    <div class="timer-sub">Heute: <b id="tSession">0:00:00</b> · <span id="tState">pausiert</span></div>
+    <div class="row">
+      <button class="primary" id="tStart">▶ Start</button>
+      <button id="tPause">⏸ Pause</button>
+      <button id="tSessionReset" title="Setzt nur den Heute-Timer auf 0">Neuer Stream-Tag</button>
+    </div>
+    <label class="f">Projektzeit korrigieren (Stunden:Minuten)</label>
+    <div class="row"><input id="tSetVal" placeholder="z. B. 12:30" class="grow"><button id="tSet">Setzen</button><button class="danger" id="tReset">Auf 0</button></div>
+  </section>
+
+  <!-- Zähler -->
+  <section class="card">
+    <h2>Zähler</h2>
+    <div class="counter"><span class="name">💀 Tode</span><button data-c="deaths" data-d="-1">−</button><span class="num display" id="nDeaths">0</span><button class="plus" data-c="deaths" data-d="1">+</button></div>
+    <div class="counter"><span class="name">💨 Fürze</span><button data-c="farts" data-d="-1">−</button><span class="num display" id="nFarts">0</span><button class="plus" data-c="farts" data-d="1">+</button></div>
+    <div class="hint">Tastenkürzel (wenn kein Textfeld aktiv ist): <kbd>D</kbd> Tod +1 · <kbd>Shift</kbd>+<kbd>D</kbd> −1 · <kbd>F</kbd> Furz +1 · <kbd>Shift</kbd>+<kbd>F</kbd> −1 · <kbd>Leertaste</kbd> Timer Start/Pause</div>
+  </section>
+
+  <!-- Held & Mission -->
+  <section class="card">
+    <h2>Held &amp; Mission</h2>
+    <label class="f">Superhelden-Name</label><input id="heroName" placeholder="z. B. Captain Kahri">
+    <div class="row">
+      <div class="grow"><label class="f">Klasse(n)</label><input id="heroCls" placeholder="z. B. Speedster / Psychic"></div>
+      <div class="grow"><label class="f">Schwierigkeit</label><input id="heroDiff" placeholder="z. B. Superhirn"></div>
+    </div>
+    <label class="f">Aktuelle Mission / Story-Fortschritt</label><input id="mission" placeholder="z. B. Tag 2 – Die Schwarzen Lichter">
+    <div class="hint" style="margin-top:6px">Wird beim Verlassen des Felds automatisch gespeichert.</div>
+  </section>
+
+  <!-- Erfolge -->
+  <section class="card wide">
+    <h2>Erfolge <span class="right" id="achSummary"></span></h2>
+    <div class="progress"><div id="achBar"></div></div>
+    <div class="row" style="margin-bottom:10px">
+      <input id="achSearch" placeholder="Suchen…" class="grow" style="max-width:280px">
+      <div class="seg" id="achFilter"><button data-f="all" class="on">Alle</button><button data-f="open">Offen</button><button data-f="done">Erreicht</button></div>
+      <label class="tg"><input type="checkbox" id="withPopup" checked> Popup im Stream zeigen</label>
+    </div>
+    <div class="ach-grid" id="achGrid"></div>
+  </section>
+
+  <!-- Sammelobjekte -->
+  <section class="card wide">
+    <h2>Sammelobjekte <span class="right" id="collSummary"></span></h2>
+    <div class="coll-tabs" id="collTabs"></div>
+    <div class="tiles" id="collTiles"></div>
+    <div class="row" style="margin-top:10px"><button class="ghost" id="collAll">Alle markieren</button><button class="ghost danger" id="collNone">Alle zurücksetzen</button></div>
+  </section>
+
+  <!-- Anzeige -->
+  <section class="card">
+    <h2>Anzeige im Overlay</h2>
+    <div class="toggles" id="showToggles"></div>
+    <label class="f">Erfolgsliste ausklappen</label>
+    <select id="achList"><option value="off">Eingeklappt</option><option value="open">Offene Erfolge</option><option value="done">Erreichte Erfolge</option><option value="all">Alle Erfolge</option></select>
+    <label class="f">Sammelobjekte ausklappen</label>
+    <select id="collList"></select>
+    <div class="hint" style="margin-top:6px">Lange Listen blättern im Overlay automatisch alle 8 Sekunden weiter.</div>
+  </section>
+
+  <section class="card">
+    <h2>Position &amp; Effekte</h2>
+    <div class="row" style="align-items:flex-start;gap:18px">
+      <div><label class="f" style="margin-top:0">Ecke</label>
+        <div class="pos" id="posBtns"><button data-p="tl">↖ oben</button><button data-p="tr">oben ↗</button><button data-p="bl">↙ unten</button><button data-p="br">unten ↘</button></div></div>
+      <div class="grow"><label class="f" style="margin-top:0">Größe <b id="scaleVal">100%</b></label><input type="range" id="scale" min="0.6" max="1.6" step="0.05" style="padding:0"></div>
+    </div>
+    <div class="toggles" style="margin-top:10px">
+      <label class="tg"><input type="checkbox" id="uiPopup"> Erfolgs-Popup</label>
+      <label class="tg"><input type="checkbox" id="uiSound"> Popup-Sound</label>
+    </div>
+    <div class="row" style="margin-top:10px"><button id="testPopup">Testpopup senden</button></div>
+  </section>
+
+  <section class="card">
+    <h2>Daten</h2>
+    <div class="row">
+      <button id="exportBtn">Backup herunterladen</button>
+      <label class="tg" style="margin:0"><button id="importBtn" type="button">Backup laden</button><input type="file" id="importFile" accept="application/json" hidden></label>
+    </div>
+    <div class="row" style="margin-top:10px"><button class="danger" id="resetAll">Alles zurücksetzen</button></div>
+    <div class="hint" style="margin-top:8px">Tipp: Vor jedem Stream ein Backup ziehen schadet nie.</div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script type="module">
+import { ACHIEVEMENTS, COLLECTIBLES, itemLabel } from './js/data.js';
+import * as S from './js/store.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let state = {};
+let achFilter = 'all';
+let collTab = COLLECTIBLES[0].key;
+const overlayBase = new URL('index.html', location.href).href.replace(/\?.*$/, '');
+const overlayUrl = S.isLocal ? overlayBase + (location.search.includes('demo') ? '?demo' : '') : overlayBase + '?key=' + (S.roomKey() || '');
+
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800); }
+const safe = (p) => p.catch((e) => { console.error(e); toast('Fehler: ' + (e.code || e.message)); });
+
+// ---------- Render ----------
+function render() {
+  const u = S.ui(state);
+  $('nDeaths').textContent = state.deaths || 0;
+  $('nFarts').textContent = state.farts || 0;
+
+  const hero = state.hero || {};
+  fill('heroName', hero.name); fill('heroCls', hero.cls); fill('heroDiff', hero.difficulty);
+  fill('mission', (state.story || {}).mission);
+
+  renderAch();
+  renderColl();
+
+  // Anzeige
+  const labels = { timer: 'Projektzeit', session: 'Heute-Timer', hero: 'Held / Klasse', progress: 'Fortschrittsring', deaths: 'Todeszähler', farts: 'Furzzähler', coll: 'Sammelobjekte', mission: 'Mission', last: 'Letzter Erfolg' };
+  $('showToggles').innerHTML = Object.entries(labels).map(([k, l]) => `<label class="tg"><input type="checkbox" data-show="${k}" ${u.show[k] ? 'checked' : ''}> ${l}</label>`).join('');
+  $('achList').value = u.achList;
+  $('collList').innerHTML = `<option value="off">Eingeklappt</option><option value="cycle">Alle nacheinander</option>` + COLLECTIBLES.map((c) => `<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
+  $('collList').value = u.collList;
+  document.querySelectorAll('#posBtns button').forEach((b) => b.classList.toggle('on', b.dataset.p === u.pos));
+  if (document.activeElement !== $('scale')) $('scale').value = u.scale;
+  $('scaleVal').textContent = Math.round(u.scale * 100) + '%';
+  $('uiPopup').checked = u.popup; $('uiSound').checked = u.sound;
+}
+function fill(id, val) { const el = $(id); if (document.activeElement !== el) el.value = val || ''; }
+
+function renderAch() {
+  const got = state.achievements || {};
+  const n = ACHIEVEMENTS.filter((a) => got[a.id]).length;
+  $('achSummary').textContent = `${n} / ${ACHIEVEMENTS.length} · ${Math.round((n / ACHIEVEMENTS.length) * 100)}%`;
+  $('achBar').style.width = (n / ACHIEVEMENTS.length) * 100 + '%';
+  const q = $('achSearch').value.trim().toLowerCase();
+  const list = ACHIEVEMENTS.filter((a) => (achFilter === 'all' || (achFilter === 'done') === !!got[a.id]) && (!q || (a.name + ' ' + a.en + ' ' + a.desc).toLowerCase().includes(q)));
+  $('achGrid').innerHTML = list.map((a) => `
+    <button class="ach ${got[a.id] ? 'got' : ''}" data-ach="${a.id}">
+      <span class="box">${got[a.id] ? '✓' : ''}</span>
+      <span><div class="nm">${esc(a.name)}${a.missable ? '<span class="pill">⚠ verpassbar</span>' : ''}</div>
+      <div class="ds">${esc(a.desc)}</div>
+      ${got[a.id] ? `<div class="when">${new Date(got[a.id]).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div>` : ''}</span>
+    </button>`).join('') || '<div class="hint">Nichts gefunden.</div>';
+}
+
+function renderColl() {
+  const coll = state.collectibles || {};
+  const cnt = (o) => (o ? Object.values(o).filter(Boolean).length : 0);
+  $('collSummary').textContent = COLLECTIBLES.map((c) => `${c.icon} ${cnt(coll[c.key])}/${c.total}`).join('   ');
+  $('collTabs').innerHTML = COLLECTIBLES.map((c) => `<button data-tab="${c.key}" class="${c.key === collTab ? 'on' : ''}">${c.icon} ${c.label} · ${cnt(coll[c.key])}/${c.total}</button>`).join('');
+  const c = COLLECTIBLES.find((x) => x.key === collTab);
+  const set = coll[c.key] || {};
+  $('collTiles').className = 'tiles' + (c.names ? ' named' : '');
+  $('collTiles').innerHTML = Array.from({ length: c.total }, (_, i) => `<button class="tile ${set[i + 1] ? 'got' : ''}" data-tile="${i + 1}">${esc(c.names ? itemLabel(c, i) : String(i + 1))}</button>`).join('');
+}
+
+function tick() {
+  const t = state.timer || {};
+  $('tTotal').textContent = S.fmtTime(S.timerValue(t.total));
+  $('tSession').textContent = S.fmtTime(S.timerValue(t.session));
+  const running = !!(t.total && t.total.since);
+  $('tState').textContent = running ? 'läuft' : 'pausiert';
+  $('tState').style.color = running ? 'var(--green)' : 'var(--muted)';
+}
+
+// ---------- Aktionen ----------
+function timerStart() {
+  const t = state.timer || {}, n = S.now(), up = {};
+  for (const k of ['total', 'session']) { const x = t[k] || { acc: 0 }; if (!x.since) up['timer/' + k] = { acc: x.acc || 0, since: n }; }
+  return safe(S.write(up));
+}
+function timerPause() {
+  const t = state.timer || {}, n = S.now(), up = {};
+  for (const k of ['total', 'session']) { const x = t[k]; if (x && x.since) up['timer/' + k] = { acc: (x.acc || 0) + (n - x.since), since: null }; }
+  return safe(S.write(up));
+}
+const running = () => !!(state.timer && state.timer.total && state.timer.total.since);
+
+$('tStart').onclick = timerStart;
+$('tPause').onclick = timerPause;
+$('tSessionReset').onclick = () => {
+  if (!confirm('Heute-Timer auf 0 setzen?')) return;
+  const s = (state.timer || {}).session || {};
+  safe(S.write({ 'timer/session': { acc: 0, since: s.since ? S.now() : null } }));
+};
+$('tSet').onclick = () => {
+  const m = $('tSetVal').value.trim().match(/^(\d+)(?::(\d{1,2}))?$/);
+  if (!m) return toast('Format: Stunden:Minuten, z. B. 12:30');
+  const ms = (Number(m[1]) * 3600 + Number(m[2] || 0) * 60) * 1000;
+  const tt = (state.timer || {}).total || {};
+  safe(S.write({ 'timer/total': { acc: ms, since: tt.since ? S.now() : null } })).then(() => toast('Projektzeit gesetzt'));
+  $('tSetVal').value = '';
+};
+$('tReset').onclick = () => {
+  if (!confirm('Projektzeit wirklich auf 0 setzen?')) return;
+  safe(S.write({ 'timer/total': { acc: 0, since: null }, 'timer/session': { acc: 0, since: null } }));
+};
+
+document.querySelectorAll('[data-c]').forEach((b) => b.onclick = () => safe(S.add(b.dataset.c, Number(b.dataset.d))));
+
+function saveField(id, path) {
+  $(id).addEventListener('change', () => safe(S.write({ [path]: $(id).value.trim() || null })).then(() => toast('Gespeichert')));
+}
+saveField('heroName', 'hero/name'); saveField('heroCls', 'hero/cls'); saveField('heroDiff', 'hero/difficulty'); saveField('mission', 'story/mission');
+
+$('achGrid').onclick = (e) => {
+  const b = e.target.closest('[data-ach]'); if (!b) return;
+  const id = b.dataset.ach, got = (state.achievements || {})[id];
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  if (got) {
+    if (!confirm(`"${a.name}" wieder als offen markieren?`)) return;
+    const up = { ['achievements/' + id]: null };
+    if (state.lastUnlock && state.lastUnlock.id === id) up.lastUnlock = null;
+    return safe(S.write(up));
+  }
+  const n = S.now();
+  const up = { ['achievements/' + id]: n, lastUnlock: { id, ts: n } };
+  if ($('withPopup').checked) up.popup = { kind: 'ach', id, ts: n };
+  safe(S.write(up)).then(() => toast('🏆 ' + a.name));
+};
+$('achSearch').oninput = renderAch;
+$('achFilter').onclick = (e) => {
+  const b = e.target.closest('[data-f]'); if (!b) return;
+  achFilter = b.dataset.f;
+  document.querySelectorAll('#achFilter button').forEach((x) => x.classList.toggle('on', x === b));
+  renderAch();
+};
+
+$('collTabs').onclick = (e) => { const b = e.target.closest('[data-tab]'); if (!b) return; collTab = b.dataset.tab; renderColl(); };
+$('collTiles').onclick = (e) => {
+  const b = e.target.closest('[data-tile]'); if (!b) return;
+  const c = COLLECTIBLES.find((x) => x.key === collTab);
+  const set = (state.collectibles || {})[c.key] || {};
+  const i = b.dataset.tile, on = !set[i];
+  const up = { [`collectibles/${c.key}/${i}`]: on || null };
+  const after = Object.entries(set).filter(([k, v]) => v && k !== i).length + (on ? 1 : 0);
+  if (on && after >= c.total && $('withPopup').checked) up.popup = { kind: 'coll', id: c.key, ts: S.now() };
+  safe(S.write(up));
+};
+$('collAll').onclick = () => {
+  const c = COLLECTIBLES.find((x) => x.key === collTab);
+  if (!confirm(`Alle ${c.total} ${c.label} als gefunden markieren?`)) return;
+  const obj = {}; for (let i = 1; i <= c.total; i++) obj[i] = true;
+  safe(S.write({ ['collectibles/' + c.key]: obj }));
+};
+$('collNone').onclick = () => {
+  const c = COLLECTIBLES.find((x) => x.key === collTab);
+  if (!confirm(`${c.label} komplett zurücksetzen?`)) return;
+  safe(S.write({ ['collectibles/' + c.key]: null }));
+};
+
+// Anzeige
+$('showToggles').onchange = (e) => { const k = e.target.dataset.show; if (k) safe(S.write({ ['ui/show/' + k]: e.target.checked })); };
+$('achList').onchange = () => safe(S.write({ 'ui/achList': $('achList').value }));
+$('collList').onchange = () => safe(S.write({ 'ui/collList': $('collList').value }));
+$('posBtns').onclick = (e) => { const b = e.target.closest('[data-p]'); if (b) safe(S.write({ 'ui/pos': b.dataset.p })); };
+$('scale').oninput = () => { $('scaleVal').textContent = Math.round($('scale').value * 100) + '%'; };
+$('scale').onchange = () => safe(S.write({ 'ui/scale': Number($('scale').value) }));
+$('uiPopup').onchange = () => safe(S.write({ 'ui/popup': $('uiPopup').checked }));
+$('uiSound').onchange = () => safe(S.write({ 'ui/sound': $('uiSound').checked }));
+$('testPopup').onclick = () => safe(S.write({ popup: { kind: 'test', id: 'test', ts: S.now() } })).then(() => toast('Testpopup gesendet'));
+
+// Daten
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tfbw-overlay-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').onchange = async () => {
+  const f = $('importFile').files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!confirm('Aktuellen Stand durch das Backup ersetzen?')) return;
+    delete data.popup;
+    await S.replaceAll(data); toast('Backup geladen');
+  } catch (e) { toast('Backup ungültig'); }
+  $('importFile').value = '';
+};
+$('resetAll').onclick = () => {
+  if (!confirm('Wirklich ALLES zurücksetzen (Erfolge, Sammelobjekte, Timer, Zähler)?')) return;
+  if (!confirm('Sicher? Vorher lieber ein Backup ziehen.')) return;
+  safe(S.replaceAll({ ui: state.ui || null }));
+};
+
+$('copyLink').onclick = async () => { try { await navigator.clipboard.writeText(overlayUrl); toast('Overlay-Link kopiert'); } catch { prompt('Overlay-Link:', overlayUrl); } };
+$('openOverlay').onclick = () => window.open(overlayUrl, '_blank');
+
+// Tastenkürzel
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('input, select, textarea') || e.ctrlKey || e.altKey || e.metaKey || $('app').hidden) return;
+  const k = e.key.toLowerCase();
+  if (k === 'd') { safe(S.add('deaths', e.shiftKey ? -1 : 1)); e.preventDefault(); }
+  else if (k === 'f') { safe(S.add('farts', e.shiftKey ? -1 : 1)); e.preventDefault(); }
+  else if (e.code === 'Space' && !e.target.matches('button')) { running() ? timerPause() : timerStart(); e.preventDefault(); }
+});
+
+// ---------- Start ----------
+$('demoBanner').hidden = !S.isLocal;
+if (!S.isLocal && !S.roomKey()) {
+  const k = S.rememberedKey();
+  if (k) { location.replace(location.pathname + '?key=' + k); }
+  else {
+    $('setup').hidden = false;
+    $('status').querySelector('span').textContent = 'kein Schlüssel';
+    $('makeKey').onclick = () => location.replace(location.pathname + '?key=' + S.newKey());
+  }
+  throw new Error('Kein Raum-Schlüssel');
+}
+await S.init({ onConnection: (on) => {
+  $('status').classList.toggle('on', on);
+  $('status').querySelector('span').textContent = on ? (S.isLocal ? 'Demo (lokal)' : 'Live verbunden') : 'getrennt';
+}});
+$('app').hidden = false;
+S.subscribe((s) => { state = s || {}; render(); tick(); });
+setInterval(tick, 500);
+</script>
+</body>
+</html>

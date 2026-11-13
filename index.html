@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Achievement Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #12161f;
+    --panel: rgba(20, 26, 40, 0.90);
+    --panel-2: rgba(32, 40, 60, 0.92);
+    --paper: #f3ead6;
+    --muted: #aeb6c8;
+    --snow: #ffffff;
+    --orange: #f28c28;   /* Kenny */
+    --green: #5fb84a;    /* Kyle */
+    --blue: #3b7dd8;     /* Stan */
+    --red: #e04a3a;      /* Cartman */
+    --yellow: #f6c445;
+    --cut: 0 3px 0 rgba(0,0,0,.45), 0 8px 18px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: transparent; overflow: hidden; }
+  body { font-family: Rubik, system-ui, sans-serif; color: var(--paper); width: 100vw; height: 100vh; }
+
+  #root { position: absolute; padding: 24px; }
+  #root.tl { top: 0; left: 0; }  #root.tr { top: 0; right: 0; }
+  #root.bl { bottom: 0; left: 0; } #root.br { bottom: 0; right: 0; }
+  .stack { width: 340px; display: flex; flex-direction: column; gap: 10px; }
+  #root.tl .stack, #root.bl .stack { transform-origin: left top; }
+  #root.tr .stack, #root.br .stack { transform-origin: right top; }
+  #root.bl .stack { transform-origin: left bottom; } #root.br .stack { transform-origin: right bottom; }
+
+  .card {
+    position: relative; background: var(--panel); border: 2px solid var(--paper);
+    border-radius: 10px; box-shadow: var(--cut); padding: 12px 14px; overflow: hidden;
+  }
+  .card:nth-child(odd) { transform: rotate(-0.5deg); }
+  .card:nth-child(even) { transform: rotate(0.4deg); }
+  .hidden { display: none !important; }
+  .display { font-family: 'Luckiest Guy', Rubik, sans-serif; letter-spacing: .5px; font-weight: 400; }
+  .eyebrow { font-size: 10.5px; letter-spacing: 1.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+
+  /* Kopf mit Bergsilhouette */
+  .head { padding-top: 14px; padding-bottom: 12px; }
+  .mountains { position: absolute; left: 0; right: 0; top: 0; height: 100%; opacity: .22; pointer-events: none; }
+  .head-row { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 4px; }
+  .timer { font-size: 34px; line-height: 1; color: var(--snow); text-shadow: 0 2px 0 var(--ink); }
+  .timer.paused { color: var(--muted); }
+  .sub { font-size: 12px; color: var(--muted); }
+  .sub b { color: var(--paper); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .hero { position: relative; margin-top: 8px; font-size: 12.5px; color: var(--paper); display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); padding: 2px 7px; border-radius: 999px; font-size: 11.5px; }
+  .pause-pill { font-size: 10px; letter-spacing: 1.2px; background: var(--red); color: #fff; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+
+  /* Fortschritt */
+  .stats { display: flex; align-items: center; gap: 14px; }
+  .ring { width: 76px; height: 76px; flex: none; position: relative; }
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring .pct { position: absolute; inset: 0; display: grid; place-items: center; font-size: 21px; color: var(--snow); }
+  .ring .bg { stroke: rgba(255,255,255,.12); }
+  .ring .fg { stroke: var(--orange); transition: stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1); stroke-linecap: round; }
+  .stat-main { flex: 1; min-width: 0; }
+  .big { font-size: 26px; color: var(--snow); line-height: 1.05; }
+  .big small { font-size: 16px; color: var(--muted); }
+  .counters { display: flex; gap: 8px; margin-top: 8px; }
+  .counter { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.07); border-radius: 8px; padding: 4px 9px; font-size: 13px; }
+  .counter .n { font-family: 'Luckiest Guy'; font-size: 18px; color: var(--snow); line-height: 1; padding-top: 2px; }
+  .counter.deaths .n { color: #ff8a7a; }
+  .counter.farts .n { color: #b5e07a; }
+  .bump { animation: bump .5s ease; }
+  @keyframes bump { 0%{transform:scale(1)} 35%{transform:scale(1.35)} 100%{transform:scale(1)} }
+
+  /* Sammelobjekte */
+  .coll { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px; }
+  .chip { display: flex; align-items: center; gap: 7px; background: var(--panel-2); border-radius: 8px; padding: 6px 8px; position: relative; overflow: hidden; }
+  .chip .ic { font-size: 16px; }
+  .chip .lbl { font-size: 11px; color: var(--muted); line-height: 1.1; }
+  .chip .val { font-size: 15px; color: var(--snow); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .chip .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--green); transition: width .8s; }
+  .chip.done { outline: 2px solid var(--yellow); }
+  .chip.done .bar { background: var(--yellow); }
+
+  /* Mission + letzter Erfolg */
+  .mission .txt { font-size: 14px; margin-top: 3px; line-height: 1.3; color: var(--snow); }
+  .last { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,.18); font-size: 12.5px; display: flex; gap: 6px; align-items: center; }
+  .last .name { color: var(--yellow); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mission.only-last .last { margin-top: 0; padding-top: 0; border-top: 0; }
+
+  /* Ausgeklappte Listen */
+  .list-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .dots { display: flex; gap: 4px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.2); }
+  .dots i.on { background: var(--orange); }
+  .ach-list { list-style: none; display: flex; flex-direction: column; gap: 5px; animation: fadein .5s ease; }
+  .ach-list li { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+  .ach-list .box { width: 16px; height: 16px; border-radius: 4px; border: 2px solid var(--muted); flex: none; display: grid; place-items: center; font-size: 11px; }
+  .ach-list li.got .box { background: var(--green); border-color: var(--green); color: #0d1a0a; font-weight: 700; }
+  .ach-list li.got .nm { color: var(--paper); }
+  .ach-list li:not(.got) .nm { color: var(--snow); }
+  .warn { color: var(--yellow); font-size: 11px; margin-left: auto; }
+  .tiles { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; animation: fadein .5s ease; }
+  .tiles.named { grid-template-columns: 1fr 1fr; }
+  .tile { aspect-ratio: 1; border-radius: 6px; background: rgba(255,255,255,.07); display: grid; place-items: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .tiles.named .tile { aspect-ratio: auto; padding: 6px; font-size: 12px; }
+  .tile.got { background: var(--green); color: #0d1a0a; font-weight: 700; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* Popup */
+  #toast {
+    position: absolute; left: 50%; top: 40px; transform: translate(-50%, -160%);
+    display: flex; align-items: center; gap: 14px; min-width: 380px; max-width: 560px;
+    background: var(--panel); border: 3px solid var(--yellow); border-radius: 14px; padding: 14px 20px 14px 14px;
+    box-shadow: var(--cut); transition: transform .6s cubic-bezier(.2,1.3,.4,1);
+  }
+  #toast.show { transform: translate(-50%, 0) rotate(-1deg); }
+  #toast .badge { width: 58px; height: 58px; border-radius: 50%; background: var(--yellow); display: grid; place-items: center; flex: none; box-shadow: inset 0 -4px 0 rgba(0,0,0,.2); }
+  #toast .badge svg { width: 32px; height: 32px; }
+  #toast .t-eyebrow { color: var(--yellow); font-size: 11px; letter-spacing: 2px; font-weight: 700; text-transform: uppercase; }
+  #toast .t-name { font-size: 24px; color: var(--snow); line-height: 1.1; margin-top: 2px; }
+  #toast .t-desc { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  #toast.show .badge { animation: spin 1s .3s ease; }
+  @keyframes spin { 0%{transform:rotate(0) scale(1)} 50%{transform:rotate(-15deg) scale(1.15)} 100%{transform:rotate(0) scale(1)} }
+</style>
+</head>
+<body>
+<div id="root" class="tl">
+  <div class="stack" id="stack">
+    <section class="card head" id="cHead">
+      <svg class="mountains" viewBox="0 0 340 100" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 100 L0 70 L40 38 L70 58 L115 18 L150 50 L180 30 L225 62 L265 24 L300 52 L340 34 L340 100 Z" fill="#ffffff"/>
+        <path d="M115 18 L128 30 L120 33 L108 28 Z M265 24 L278 37 L268 38 L255 33 Z M40 38 L50 47 L42 49 L32 45 Z" fill="#ffffff"/>
+      </svg>
+      <div class="eyebrow" style="position:relative">South Park · Fractured But Whole</div>
+      <div class="head-row" id="timerRow">
+        <div>
+          <div class="sub">Projektzeit <span class="pause-pill hidden" id="pausePill">PAUSE</span></div>
+          <div class="timer display" id="tTotal">0:00:00</div>
+        </div>
+        <div class="sub" id="sessionWrap" style="text-align:right">Heute<br><b id="tSession">0:00:00</b></div>
+      </div>
+      <div class="hero" id="hero"></div>
+    </section>
+
+    <section class="card stats" id="cStats">
+      <div class="ring" id="ringWrap">
+        <svg viewBox="0 0 80 80"><circle class="bg" cx="40" cy="40" r="33" fill="none" stroke-width="8"/>
+          <circle class="fg" id="ringFg" cx="40" cy="40" r="33" fill="none" stroke-width="8" stroke-dasharray="207.35" stroke-dashoffset="207.35"/></svg>
+        <div class="pct display" id="pct">0%</div>
+      </div>
+      <div class="stat-main">
+        <div class="eyebrow">Erfolge</div>
+        <div class="big display" id="achCount">0<small> / 35</small></div>
+        <div class="counters">
+          <div class="counter deaths" id="cntDeaths" title="Tode">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#ff8a7a"><path d="M12 2C6.5 2 3 5.8 3 10.5c0 2.6 1.2 4.6 3 5.9V20a2 2 0 0 0 2 2h1v-3h2v3h2v-3h2v3h1a2 2 0 0 0 2-2v-3.6c1.8-1.3 3-3.3 3-5.9C21 5.8 17.5 2 12 2Zm-3.5 11a2 2 0 1 1 0-4 2 2 0 0 1 0 4Zm7 0a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/></svg>
+            <span class="n" id="nDeaths">0</span>
+          </div>
+          <div class="counter farts" id="cntFarts" title="Fürze">
+            <span style="font-size:14px">💨</span><span class="n" id="nFarts">0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card coll" id="cColl"></section>
+
+    <section class="card mission" id="cMission">
+      <div id="missionWrap"><div class="eyebrow">Aktuelle Mission</div><div class="txt" id="mission"></div></div>
+      <div class="last" id="lastWrap"><span>🏆</span><span class="sub">Zuletzt:</span><span class="name" id="lastName"></span></div>
+    </section>
+
+    <section class="card hidden" id="cAchList">
+      <div class="list-head"><div class="eyebrow" id="achListTitle">Erfolge</div><div class="dots" id="achDots"></div></div>
+      <ul class="ach-list" id="achList"></ul>
+    </section>
+
+    <section class="card hidden" id="cCollList">
+      <div class="list-head"><div class="eyebrow" id="collListTitle"></div><div class="sub" id="collListCount"></div></div>
+      <div class="tiles" id="tiles"></div>
+    </section>
+  </div>
+
+  <div id="toast">
+    <div class="badge"><svg viewBox="0 0 24 24" fill="#12161f"><path d="M7 3h10v2h3v3a4 4 0 0 1-4 4h-.3A5 5 0 0 1 13 14.9V18h3v3H8v-3h3v-3.1A5 5 0 0 1 8.3 12H8a4 4 0 0 1-4-4V5h3V3Zm-1 4v1a2 2 0 0 0 2 2V7H6Zm12 0h-2v3a2 2 0 0 0 2-2V7Z"/></svg></div>
+    <div><div class="t-eyebrow" id="tEyebrow">Erfolg freigeschaltet</div><div class="t-name display" id="tName"></div><div class="t-desc" id="tDesc"></div></div>
+  </div>
+</div>
+
+<script type="module">
+import { ACHIEVEMENTS, COLLECTIBLES, itemLabel } from './js/data.js';
+import * as S from './js/store.js';
+
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+let state = {};
+let prev = { deaths: null, farts: null };
+let lastPopupTs = null;
+let page = 0, collCycle = 0;
+const PAGE_SIZE = 8, ROTATE_MS = 8000;
+
+function render() {
+  const u = S.ui(state);
+  const pos = params.get('pos') || u.pos;
+  $('root').className = pos;
+  $('stack').style.transform = `scale(${Number(params.get('scale') || u.scale) || 1})`;
+  // Toast immer oben mittig, unabhängig von der Panelposition
+  const toast = $('toast');
+  toast.style.position = 'fixed';
+
+  // Kopf
+  const sh = u.show;
+  $('timerRow').classList.toggle('hidden', !sh.timer);
+  $('sessionWrap').classList.toggle('hidden', !sh.session);
+  const hero = state.hero || {};
+  const tags = [hero.name, hero.cls, hero.difficulty].filter(Boolean);
+  $('hero').innerHTML = tags.map((t, i) => `<span class="tag">${esc(i === 0 ? '🦸 ' + t : t)}</span>`).join('');
+  $('hero').classList.toggle('hidden', !sh.hero || !tags.length);
+  $('cHead').classList.toggle('hidden', !sh.timer && (!sh.hero || !tags.length));
+
+  // Fortschritt
+  const got = state.achievements || {};
+  const n = ACHIEVEMENTS.filter((a) => got[a.id]).length;
+  const pct = Math.round((n / ACHIEVEMENTS.length) * 100);
+  $('pct').textContent = pct + '%';
+  $('ringFg').style.strokeDashoffset = 207.35 * (1 - n / ACHIEVEMENTS.length);
+  $('achCount').innerHTML = `${n}<small> / ${ACHIEVEMENTS.length}</small>`;
+  setCounter('deaths', state.deaths || 0);
+  setCounter('farts', state.farts || 0);
+  $('cntDeaths').classList.toggle('hidden', !sh.deaths);
+  $('cntFarts').classList.toggle('hidden', !sh.farts);
+  $('cStats').classList.toggle('hidden', !sh.progress && !sh.deaths && !sh.farts);
+  $('ringWrap').classList.toggle('hidden', !sh.progress);
+
+  // Sammelobjekte
+  const coll = state.collectibles || {};
+  $('cColl').innerHTML = COLLECTIBLES.map((c) => {
+    const k = countColl(coll[c.key]);
+    const done = k >= c.total;
+    return `<div class="chip ${done ? 'done' : ''}"><span class="ic">${c.icon}</span>
+      <div><div class="lbl">${esc(c.label)}</div><div class="val">${k}/${c.total}</div></div>
+      <div class="bar" style="width:${(k / c.total) * 100}%"></div></div>`;
+  }).join('');
+  $('cColl').classList.toggle('hidden', !sh.coll);
+
+  // Mission + letzter Erfolg
+  const mission = (state.story && state.story.mission) || '';
+  $('mission').textContent = mission;
+  const showMission = sh.mission && !!mission;
+  $('missionWrap').classList.toggle('hidden', !showMission);
+  const last = state.lastUnlock && ACHIEVEMENTS.find((a) => a.id === state.lastUnlock.id && got[a.id]);
+  $('lastName').textContent = last ? last.name : '';
+  const showLast = sh.last && !!last;
+  $('lastWrap').classList.toggle('hidden', !showLast);
+  $('cMission').classList.toggle('hidden', !showMission && !showLast);
+  $('cMission').classList.toggle('only-last', !showMission);
+
+  renderLists(u);
+  checkPopup(u);
+}
+
+function renderLists(u) {
+  // Erfolgsliste (seitenweise rotierend)
+  const got = state.achievements || {};
+  const mode = u.achList;
+  if (mode === 'off') { $('cAchList').classList.add('hidden'); }
+  else {
+    let items = ACHIEVEMENTS;
+    if (mode === 'open') items = items.filter((a) => !got[a.id]);
+    if (mode === 'done') items = items.filter((a) => got[a.id]).sort((a, b) => got[b.id] - got[a.id]);
+    const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    if (page >= pages) page = 0;
+    $('achListTitle').textContent = { open: 'Offene Erfolge', done: 'Erreichte Erfolge', all: 'Alle Erfolge' }[mode] + ` · ${items.length}`;
+    $('achDots').innerHTML = pages > 1 ? Array.from({ length: pages }, (_, i) => `<i class="${i === page ? 'on' : ''}"></i>`).join('') : '';
+    const slice = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+    const html = slice.length
+      ? slice.map((a) => `<li class="${got[a.id] ? 'got' : ''}"><span class="box">${got[a.id] ? '✓' : ''}</span><span class="nm">${esc(a.name)}</span>${a.missable && !got[a.id] ? '<span class="warn">⚠ verpassbar</span>' : ''}</li>`).join('')
+      : `<li><span class="sub">${mode === 'open' ? 'Alles erledigt! 🎉' : 'Noch keine Erfolge'}</span></li>`;
+    setHTML('achList', html);
+    $('cAchList').classList.remove('hidden');
+  }
+
+  // Sammelobjekt-Detail
+  const cm = u.collList;
+  if (cm === 'off') { $('cCollList').classList.add('hidden'); return; }
+  const c = cm === 'cycle' ? COLLECTIBLES[collCycle % COLLECTIBLES.length] : COLLECTIBLES.find((x) => x.key === cm);
+  if (!c) { $('cCollList').classList.add('hidden'); return; }
+  const set = (state.collectibles || {})[c.key] || {};
+  $('collListTitle').textContent = `${c.icon} ${c.label}`;
+  $('collListCount').innerHTML = `<b>${countColl(set)}</b> / ${c.total}`;
+  $('tiles').className = 'tiles' + (c.names ? ' named' : '');
+  setHTML('tiles', Array.from({ length: c.total }, (_, i) => `<div class="tile ${set[i + 1] ? 'got' : ''}">${esc(c.names ? itemLabel(c, i) : String(i + 1))}</div>`).join(''));
+  $('cCollList').classList.remove('hidden');
+}
+
+// Nur neu zeichnen, wenn sich Inhalt ändert (sonst flackert die Einblend-Animation)
+function setHTML(id, html) {
+  const el = $(id);
+  if (el.dataset.h === html) return;
+  el.dataset.h = html; el.innerHTML = html;
+  el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
+}
+
+function setCounter(key, val) {
+  const el = $(key === 'deaths' ? 'nDeaths' : 'nFarts');
+  if (prev[key] !== null && prev[key] !== val) {
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  }
+  prev[key] = val;
+  el.textContent = val;
+}
+
+const countColl = (o) => (o ? Object.values(o).filter(Boolean).length : 0);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---- Popup ----
+const queue = [];
+let showing = false;
+function checkPopup(u) {
+  const p = state.popup;
+  if (!p || !p.ts) return;
+  if (lastPopupTs === null) { // erster Ladevorgang: nur ganz frische Popups zeigen
+    lastPopupTs = p.ts;
+    if (S.now() - p.ts > 10000) return;
+  } else if (p.ts === lastPopupTs) return;
+  lastPopupTs = p.ts;
+  if (!u.popup) return;
+  queue.push({ ...p, sound: u.sound });
+  nextToast();
+}
+function nextToast() {
+  if (showing || !queue.length) return;
+  const p = queue.shift();
+  let eyebrow = 'Erfolg freigeschaltet', name = '', desc = '';
+  if (p.kind === 'ach') {
+    const a = ACHIEVEMENTS.find((x) => x.id === p.id); if (!a) return nextToast();
+    name = a.name; desc = a.desc;
+  } else if (p.kind === 'coll') {
+    const c = COLLECTIBLES.find((x) => x.key === p.id); if (!c) return nextToast();
+    eyebrow = 'Sammlung komplett'; name = `${c.icon} ${c.label}`; desc = `Alle ${c.total} gefunden!`;
+  } else if (p.kind === 'test') {
+    name = 'Overlay läuft'; desc = 'Testpopup vom Steuerpanel';
+  }
+  $('tEyebrow').textContent = eyebrow; $('tName').textContent = name; $('tDesc').textContent = desc;
+  showing = true;
+  $('toast').classList.add('show');
+  if (p.sound) chime();
+  setTimeout(() => { $('toast').classList.remove('show'); setTimeout(() => { showing = false; nextToast(); }, 700); }, 6500);
+}
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'triangle'; o.frequency.value = f;
+      const t = ctx.currentTime + i * 0.11;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+      o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.55);
+    });
+  } catch {}
+}
+
+// ---- Timer-Tick + Rotation ----
+function tick() {
+  const t = state.timer || {};
+  $('tTotal').textContent = S.fmtTime(S.timerValue(t.total));
+  $('tSession').textContent = S.fmtTime(S.timerValue(t.session));
+  const running = !!(t.total && t.total.since);
+  $('tTotal').classList.toggle('paused', !running);
+  $('pausePill').classList.toggle('hidden', running || !S.timerValue(t.total));
+}
+setInterval(tick, 500);
+setInterval(() => { page++; collCycle++; renderLists(S.ui(state)); }, ROTATE_MS);
+
+try { await S.init(); } catch (e) { console.warn('Overlay: Link ohne gültigen ?key=… – bitte den Link aus dem Steuerpanel verwenden.'); }
+S.subscribe((s) => { state = s || {}; render(); tick(); });
+</script>
+</body>
+</html>
