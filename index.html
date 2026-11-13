@@ -89,6 +89,12 @@
   .last .name { color: var(--yellow); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mission.only-last .last { margin-top: 0; padding-top: 0; border-top: 0; }
 
+  .qrow { display: flex; gap: 8px; margin-top: 8px; }
+  .qchip { flex: 1; display: flex; align-items: center; gap: 6px; background: var(--panel-2); border-radius: 8px; padding: 5px 8px; font-size: 12px; color: var(--muted); position: relative; overflow: hidden; }
+  .qchip b { color: var(--snow); font-size: 14px; font-variant-numeric: tabular-nums; margin-left: auto; }
+  .qchip .bar { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--blue); transition: width .8s; }
+  .mission.only-quests .qrow { margin-top: 0; }
+
   /* Ausgeklappte Listen */
   .list-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .dots { display: flex; gap: 4px; }
@@ -169,12 +175,18 @@
 
     <section class="card mission" id="cMission">
       <div id="missionWrap"><div class="eyebrow">Aktuelle Mission</div><div class="txt" id="mission"></div></div>
+      <div class="qrow" id="questRow"></div>
       <div class="last" id="lastWrap"><span>🏆</span><span class="sub">Zuletzt:</span><span class="name" id="lastName"></span></div>
     </section>
 
     <section class="card hidden" id="cAchList">
       <div class="list-head"><div class="eyebrow" id="achListTitle">Erfolge</div><div class="dots" id="achDots"></div></div>
       <ul class="ach-list" id="achList"></ul>
+    </section>
+
+    <section class="card hidden" id="cQuestList">
+      <div class="list-head"><div class="eyebrow" id="questListTitle"></div><div class="dots" id="questDots"></div></div>
+      <ul class="ach-list" id="questList"></ul>
     </section>
 
     <section class="card hidden" id="cCollList">
@@ -190,7 +202,7 @@
 </div>
 
 <script type="module">
-import { ACHIEVEMENTS, COLLECTIBLES, itemLabel } from './js/data.js';
+import { ACHIEVEMENTS, COLLECTIBLES, QUESTS, QUEST_GROUPS, itemLabel } from './js/data.js';
 import * as S from './js/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -246,16 +258,24 @@ function render() {
   $('cColl').classList.toggle('hidden', !sh.coll);
 
   // Mission + letzter Erfolg
-  const mission = (state.story && state.story.mission) || '';
+  const qd = state.quests || {};
+  const nextMain = QUESTS.main.find((q) => !(qd.main || {})[q.id]);
+  const mission = (state.story && state.story.mission) || (nextMain ? nextMain.name : '');
   $('mission').textContent = mission;
   const showMission = sh.mission && !!mission;
+  $('questRow').innerHTML = QUEST_GROUPS.map((g) => {
+    const list = QUESTS[g.key], done = list.filter((q) => (qd[g.key] || {})[q.id]).length;
+    return `<div class="qchip"><span>${g.icon}</span><span>${g.short}</span><b>${done}/${list.length}</b><div class="bar" style="width:${(done / list.length) * 100}%"></div></div>`;
+  }).join('');
+  $('questRow').classList.toggle('hidden', !sh.quests);
   $('missionWrap').classList.toggle('hidden', !showMission);
   const last = state.lastUnlock && ACHIEVEMENTS.find((a) => a.id === state.lastUnlock.id && got[a.id]);
   $('lastName').textContent = last ? last.name : '';
   const showLast = sh.last && !!last;
   $('lastWrap').classList.toggle('hidden', !showLast);
-  $('cMission').classList.toggle('hidden', !showMission && !showLast);
+  $('cMission').classList.toggle('hidden', !showMission && !showLast && !sh.quests);
   $('cMission').classList.toggle('only-last', !showMission);
+  $('cMission').classList.toggle('only-quests', !showMission && !showLast);
 
   renderLists(u);
   checkPopup(u);
@@ -280,6 +300,24 @@ function renderLists(u) {
       : `<li><span class="sub">${mode === 'open' ? 'Alles erledigt! 🎉' : 'Noch keine Erfolge'}</span></li>`;
     setHTML('achList', html);
     $('cAchList').classList.remove('hidden');
+  }
+
+  // Questliste
+  const qm = u.questList;
+  if (qm !== 'main' && qm !== 'side') { $('cQuestList').classList.add('hidden'); }
+  else {
+    const qd = (state.quests || {})[qm] || {};
+    const items = QUESTS[qm];
+    const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+    // Startseite: dort, wo die erste offene Quest steht, dann weiterblättern
+    const firstOpen = Math.max(0, items.findIndex((q) => !qd[q.id]));
+    const pg = (Math.floor(firstOpen / PAGE_SIZE) + page) % pages;
+    const g = QUEST_GROUPS.find((x) => x.key === qm);
+    const done = items.filter((q) => qd[q.id]).length;
+    $('questListTitle').textContent = `${g.icon} ${g.label} · ${done}/${items.length}`;
+    $('questDots').innerHTML = pages > 1 ? Array.from({ length: pages }, (_, i) => `<i class="${i === pg ? 'on' : ''}"></i>`).join('') : '';
+    setHTML('questList', items.slice(pg * PAGE_SIZE, pg * PAGE_SIZE + PAGE_SIZE).map((q) => `<li class="${qd[q.id] ? 'got' : ''}"><span class="box">${qd[q.id] ? '✓' : ''}</span><span class="nm">${esc(q.name)}</span></li>`).join(''));
+    $('cQuestList').classList.remove('hidden');
   }
 
   // Sammelobjekt-Detail
@@ -374,7 +412,7 @@ function tick() {
 setInterval(tick, 500);
 setInterval(() => { page++; collCycle++; renderLists(S.ui(state)); }, ROTATE_MS);
 
-try { await S.init(); } catch (e) { console.warn('Overlay: Link ohne gültigen ?key=… – bitte den Link aus dem Steuerpanel verwenden.'); }
+try { await S.init({ presence: true }); } catch (e) { console.warn('Overlay: Link ohne gültigen ?key=… – bitte den Link aus dem Steuerpanel verwenden.'); }
 S.subscribe((s) => { state = s || {}; render(); tick(); });
 </script>
 </body>

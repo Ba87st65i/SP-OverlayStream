@@ -68,3 +68,75 @@ export const COLLECTIBLES = [
 ];
 
 export const itemLabel = (c, i) => (c.names ? c.names[i] : '#' + (i + 1));
+
+// Quests (Basisspiel, ohne DLC). Liste + Reihenfolge: South Park Public Library (Fandom),
+// Navigationsvorlage "FBW Missions" (EN) und Missionsseite des deutschen Wikis.
+// Zählung abgeglichen mit GamePressure (15 Neben-Einträge = 12 Nebenmissionen + 3 Schnitzeljagden).
+// Deutsche Namen der Schnitzeljagden sind nirgends dokumentiert → englischer Originaltitel.
+const Q = (list) => list.map(([en, de]) => ({ id: slug(en), en, name: de || en }));
+
+export const QUESTS = {
+  main: Q([
+    ['The Battle for Kupa Keep', 'Der Kampf um Kastell Kupa'],
+    ['Origins', 'Wie alles begann'],
+    ['Coonstagram', 'Coonstagram'],
+    ['Alternate Universes Collide', 'Kollision alternativer Universen'],
+    ['The Chains of Super Craig', 'Die Ketten von Super-Craig'],
+    ['Birth of a Coon Friend', 'Geburt eines Coon-Freunds'],
+    ['Rise of the Fourthies', 'Aufstand der Viertklässler'],
+    ['Gotta Go Fast (Travel)', "Jetzt geht's Schnell(-Reisen)"],
+    ['Mosquito in a Honey Pot', 'Mosquito im Honigtopf'],
+    ['A Touch of Faith', 'Etwas Glaube'],
+    ['The Talk', 'Das Gespräch'],
+    ['The Burrito Whisperer', 'Der Burrito-Flüsterer'],
+    ['Origins 2: New Beginnings', 'Wie alles begann 2: Neuanfang'],
+    ['Civil War', 'Civil War'],
+    ['Homeward Bound', 'Ab nach Hause'],
+    ['The Bowels of the Beast', 'Die Eingeweide der Bestie'],
+    ['CLASSIfied', 'CLASSIfiziert'],
+    ['Alternate Universes Collide Again', 'Kollision alternativer Universen Vol. 2'],
+    ['Medicinal Fried Fiasco', 'Medizinisches Bratfiasko'],
+    ['Microaggression Academy', 'Mikroaggressions-Akademie'],
+    ["Operation: Just 'Cause", 'Operation: Recht So'],
+    ['The Talk 2: The Gendering', 'Das Gespräch 2: Die Geschlechtswahl'],
+    ['Operation: Blind Justice', 'Operation: Blinde Gerechtigkeit'],
+    ['Origins 3: The Visitor', 'Wie alles begann 3: Der Besucher'],
+    ["Civil War 2: Playtime's Over", 'Civil War 2: Hart auf Hart'],
+    ['Race Academy: First Class', 'Rassenakademie: Erste Klasse'],
+    ['We Need a Tool', 'Wir brauchen ein Werkzeug'],
+    ['Under Covers', 'Unter der Decke'],
+    ['The Hundred Hands of Chaos', 'Die Hundert Hände des Chaos'],
+    ['The Chaos Gambit', 'Das Chaos-Gambit'],
+    ['The Invitation', 'Die Einladung'],
+    ['The Samaritan Agenda', 'Das Samariter-Programm'],
+    ['Origins 4: The Omega Prologue', 'Wie alles begann 4: Omega-Prolog'],
+    ['Heading Home', 'Nach Hause Gehen'],
+    ['Nocturnal Submission', 'Nächtliche Bescheidenheit'],
+    ['The Thin White Line', 'Die dünne weiße Linie'],
+    ['Freedom Calling', 'Ruf der Freiheit'],
+    ['To Catch a Coon', 'Coon-Jagd'],
+    ['The Many Asses of Dr. Mephesto', 'Die vielen Ärsche des Dr. Mephesto'],
+    ['Farts of Future Past', 'Fürze aus Zukunft und Vergangenheit'],
+  ]),
+  side: Q([
+    ['A Randy Mystery', 'Ratloser Randy'],
+    ['Raisins on a Rampage', 'Raisins drehen durch'],
+    ['For Nippopolis', 'Für Nippopolis'],
+    ['Peppermint Hippo Lost & Found', 'Peppermint-Hippo-Fundsachen'],
+    ['Ghost Reconciler', 'Geisterabstimmer'],
+    ['Vigilante Marketing', 'Verbrechensbekämpfer-Marketing'],
+    ['(You Can) Call on Me', 'Du kannst mich anrufen'],
+    ['Therapy Wars', 'Therapiekriege'],
+    ['The Big Beatdown', 'Die große Prügelei'],
+    ['Always Bet on Chaos', 'Setz immer auf Chaos'],
+    ['A Perky Predicament', 'Ein pikantes Problem'],
+    ['Touch the Sky', 'Berühre den Himmel'],
+    ['Scavenger Hunt: The Yaoi Project', 'Schnitzeljagd: The Yaoi Project'],
+    ['Scavenger Hunt: The Headshot Job', 'Schnitzeljagd: The Headshot Job'],
+    ["Scavenger Hunt: Big Gay Al's Big Gay Cats", "Schnitzeljagd: Big Gay Al's Big Gay Cats"],
+  ]),
+};
+export const QUEST_GROUPS = [
+  { key: 'main', label: 'Story-Missionen', short: 'Story', icon: '📖' },
+  { key: 'side', label: 'Nebenquests', short: 'Neben', icon: '🧩' },
+];

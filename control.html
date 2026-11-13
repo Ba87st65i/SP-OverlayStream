@@ -79,6 +79,13 @@
   .pos button.on { border-color: var(--orange); color: var(--orange); }
 
   #setup { max-width: 460px; margin: 60px auto; line-height: 1.5; }
+  #toast button { margin-left: 12px; padding: 4px 10px; background: var(--orange); border-color: var(--orange); color: #1b1004; font-weight: 700; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .presets button { flex: 1; }
+  .q-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; max-height: 460px; overflow: auto; padding-right: 4px; }
+  .q-grid .ach { align-items: center; }
+  .q-grid .num { color: var(--muted); font-size: 12px; width: 22px; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+  .q-grid .ach.next { border-color: var(--orange); }
   #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(120px); background: var(--card-2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; transition: transform .3s; z-index: 10; }
   #toast.show { transform: translateX(-50%) translateY(0); }
   .demo-banner { background: rgba(246,196,69,.12); color: var(--yellow); font-size: 12.5px; padding: 6px 16px; text-align: center; }
@@ -91,6 +98,7 @@
   <div class="bar">
     <h1 class="display">Overlay-Steuerung</h1>
     <div class="status" id="status"><i></i><span>verbinde…</span></div>
+    <div class="status" id="ovStatus" title="Ist das Overlay (z. B. in Kahris OBS) gerade geöffnet?"><i></i><span>Overlay: –</span></div>
     <div class="spacer"></div>
     <button class="ghost" id="copyLink">Overlay-Link kopieren</button>
     <button class="ghost" id="openOverlay">Overlay öffnen</button>
@@ -135,8 +143,8 @@
       <div class="grow"><label class="f">Klasse(n)</label><input id="heroCls" placeholder="z. B. Speedster / Psychic"></div>
       <div class="grow"><label class="f">Schwierigkeit</label><input id="heroDiff" placeholder="z. B. Superhirn"></div>
     </div>
-    <label class="f">Aktuelle Mission / Story-Fortschritt</label><input id="mission" placeholder="z. B. Tag 2 – Die Schwarzen Lichter">
-    <div class="hint" style="margin-top:6px">Wird beim Verlassen des Felds automatisch gespeichert.</div>
+    <label class="f">Aktuelle Mission / Story-Fortschritt</label><input id="mission" placeholder="leer = nächste offene Story-Mission automatisch">
+    <div class="hint" style="margin-top:6px">Wird beim Verlassen des Felds gespeichert. Leer lassen, dann zeigt das Overlay automatisch die nächste offene Story-Mission.</div>
   </section>
 
   <!-- Erfolge -->
@@ -151,6 +159,17 @@
     <div class="ach-grid" id="achGrid"></div>
   </section>
 
+  <!-- Quests -->
+  <section class="card wide">
+    <h2>Quests <span class="right" id="questSummary"></span></h2>
+    <div class="row" style="margin-bottom:10px">
+      <div class="seg" id="questTabs"></div>
+      <input id="questSearch" placeholder="Suchen…" class="grow" style="max-width:280px">
+    </div>
+    <div class="progress"><div id="questBar" style="background:var(--blue)"></div></div>
+    <div class="q-grid" id="questGrid"></div>
+  </section>
+
   <!-- Sammelobjekte -->
   <section class="card wide">
     <h2>Sammelobjekte <span class="right" id="collSummary"></span></h2>
@@ -162,9 +181,16 @@
   <!-- Anzeige -->
   <section class="card">
     <h2>Anzeige im Overlay</h2>
+    <div class="presets" id="presets">
+      <button data-preset="gameplay" title="Klein &amp; schlicht: Timer, Fortschritt, Tode">🎮 Gameplay</button>
+      <button data-preset="standard" title="Alles sichtbar, Listen eingeklappt">⭐ Standard</button>
+      <button data-preset="talk" title="Alles sichtbar, Listen ausgeklappt">💬 Pause/Talk</button>
+    </div>
     <div class="toggles" id="showToggles"></div>
     <label class="f">Erfolgsliste ausklappen</label>
     <select id="achList"><option value="off">Eingeklappt</option><option value="open">Offene Erfolge</option><option value="done">Erreichte Erfolge</option><option value="all">Alle Erfolge</option></select>
+    <label class="f">Questliste ausklappen</label>
+    <select id="questList"><option value="off">Eingeklappt</option><option value="main">📖 Story-Missionen</option><option value="side">🧩 Nebenquests</option></select>
     <label class="f">Sammelobjekte ausklappen</label>
     <select id="collList"></select>
     <div class="hint" style="margin-top:6px">Lange Listen blättern im Overlay automatisch alle 8 Sekunden weiter.</div>
@@ -198,7 +224,7 @@
 <div id="toast"></div>
 
 <script type="module">
-import { ACHIEVEMENTS, COLLECTIBLES, itemLabel } from './js/data.js';
+import { ACHIEVEMENTS, COLLECTIBLES, QUESTS, QUEST_GROUPS, itemLabel } from './js/data.js';
 import * as S from './js/store.js';
 
 const $ = (id) => document.getElementById(id);
@@ -206,10 +232,31 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 let state = {};
 let achFilter = 'all';
 let collTab = COLLECTIBLES[0].key;
+let questTab = 'main';
 const overlayBase = new URL('index.html', location.href).href.replace(/\?.*$/, '');
 const overlayUrl = S.isLocal ? overlayBase + (location.search.includes('demo') ? '?demo' : '') : overlayBase + '?key=' + (S.roomKey() || '');
 
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800); }
+function toast(msg, undo) {
+  const t = $('toast');
+  t.textContent = msg;
+  if (undo) {
+    const b = document.createElement('button'); b.textContent = '↶ Rückgängig';
+    b.onclick = () => { t.classList.remove('show'); safe(undo()).then(() => toast('Rückgängig gemacht')); };
+    t.appendChild(b);
+  }
+  t.classList.add('show'); clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), undo ? 6000 : 1800);
+}
+// Schreibt Änderungen und bietet Rückgängig an (Popups werden dabei nie zurückgedreht).
+function act(updates, label) {
+  const inverse = {};
+  for (const path of Object.keys(updates)) if (path !== 'popup') inverse[path] = S.getPath(state, path) ?? null;
+  return safe(S.write(updates).then(() => toast(label, () => S.write(inverse))));
+}
+function addCount(path, delta, label) {
+  const before = Number(S.getPath(state, path)) || 0;
+  return safe(S.add(path, delta).then(() => toast(label, () => S.write({ [path]: before }))));
+}
 const safe = (p) => p.catch((e) => { console.error(e); toast('Fehler: ' + (e.code || e.message)); });
 
 // ---------- Render ----------
@@ -223,12 +270,15 @@ function render() {
   fill('mission', (state.story || {}).mission);
 
   renderAch();
+  renderQuests();
   renderColl();
+  renderPresence();
 
   // Anzeige
-  const labels = { timer: 'Projektzeit', session: 'Heute-Timer', hero: 'Held / Klasse', progress: 'Fortschrittsring', deaths: 'Todeszähler', farts: 'Furzzähler', coll: 'Sammelobjekte', mission: 'Mission', last: 'Letzter Erfolg' };
+  const labels = { timer: 'Projektzeit', session: 'Heute-Timer', hero: 'Held / Klasse', progress: 'Fortschrittsring', deaths: 'Todeszähler', farts: 'Furzzähler', coll: 'Sammelobjekte', mission: 'Mission', quests: 'Quest-Zähler', last: 'Letzter Erfolg' };
   $('showToggles').innerHTML = Object.entries(labels).map(([k, l]) => `<label class="tg"><input type="checkbox" data-show="${k}" ${u.show[k] ? 'checked' : ''}> ${l}</label>`).join('');
   $('achList').value = u.achList;
+  $('questList').value = u.questList;
   $('collList').innerHTML = `<option value="off">Eingeklappt</option><option value="cycle">Alle nacheinander</option>` + COLLECTIBLES.map((c) => `<option value="${c.key}">${c.icon} ${c.label}</option>`).join('');
   $('collList').value = u.collList;
   document.querySelectorAll('#posBtns button').forEach((b) => b.classList.toggle('on', b.dataset.p === u.pos));
@@ -252,6 +302,32 @@ function renderAch() {
       <div class="ds">${esc(a.desc)}</div>
       ${got[a.id] ? `<div class="when">${new Date(got[a.id]).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}</div>` : ''}</span>
     </button>`).join('') || '<div class="hint">Nichts gefunden.</div>';
+}
+
+function renderQuests() {
+  const qd = state.quests || {};
+  const cnt = (k) => QUESTS[k].filter((q) => (qd[k] || {})[q.id]).length;
+  $('questSummary').textContent = QUEST_GROUPS.map((g) => `${g.icon} ${cnt(g.key)}/${QUESTS[g.key].length}`).join('   ');
+  $('questTabs').innerHTML = QUEST_GROUPS.map((g) => `<button data-qtab="${g.key}" class="${g.key === questTab ? 'on' : ''}">${g.icon} ${g.label}</button>`).join('');
+  const list = QUESTS[questTab], done = qd[questTab] || {};
+  $('questBar').style.width = (cnt(questTab) / list.length) * 100 + '%';
+  const next = list.find((q) => !done[q.id]);
+  const s = $('questSearch').value.trim().toLowerCase();
+  $('questGrid').innerHTML = list.map((q, i) => ({ q, i })).filter(({ q }) => !s || (q.name + ' ' + q.en).toLowerCase().includes(s)).map(({ q, i }) => `
+    <button class="ach ${done[q.id] ? 'got' : ''} ${questTab === 'main' && next === q ? 'next' : ''}" data-quest="${q.id}">
+      <span class="num">${i + 1}</span><span class="box">${done[q.id] ? '✓' : ''}</span>
+      <span><div class="nm">${esc(q.name)}</div>${q.en !== q.name ? `<div class="ds">${esc(q.en)}</div>` : ''}</span>
+    </button>`).join('') || '<div class="hint">Nichts gefunden.</div>';
+}
+
+function renderPresence() {
+  const el = $('ovStatus');
+  if (S.isLocal) { el.classList.remove('on'); el.querySelector('span').textContent = 'Overlay: Demo'; return; }
+  const p = Object.values(state.presence || {}).filter((x) => x && x.since);
+  el.classList.toggle('on', p.length > 0);
+  if (!p.length) { el.querySelector('span').textContent = 'Overlay: offline'; return; }
+  const since = Math.min(...p.map((x) => x.since));
+  el.querySelector('span').textContent = `Overlay: online${p.length > 1 ? ` (${p.length}×)` : ''} seit ${new Date(since).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function renderColl() {
@@ -307,7 +383,9 @@ $('tReset').onclick = () => {
   safe(S.write({ 'timer/total': { acc: 0, since: null }, 'timer/session': { acc: 0, since: null } }));
 };
 
-document.querySelectorAll('[data-c]').forEach((b) => b.onclick = () => safe(S.add(b.dataset.c, Number(b.dataset.d))));
+const CNT_LABEL = { deaths: '💀 Tod', farts: '💨 Furz' };
+const count = (c, d) => addCount(c, d, `${CNT_LABEL[c]} ${d > 0 ? '+1' : '−1'}`);
+document.querySelectorAll('[data-c]').forEach((b) => b.onclick = () => count(b.dataset.c, Number(b.dataset.d)));
 
 function saveField(id, path) {
   $(id).addEventListener('change', () => safe(S.write({ [path]: $(id).value.trim() || null })).then(() => toast('Gespeichert')));
@@ -322,14 +400,37 @@ $('achGrid').onclick = (e) => {
     if (!confirm(`"${a.name}" wieder als offen markieren?`)) return;
     const up = { ['achievements/' + id]: null };
     if (state.lastUnlock && state.lastUnlock.id === id) up.lastUnlock = null;
-    return safe(S.write(up));
+    return act(up, `„${a.name}“ wieder offen`);
   }
   const n = S.now();
   const up = { ['achievements/' + id]: n, lastUnlock: { id, ts: n } };
   if ($('withPopup').checked) up.popup = { kind: 'ach', id, ts: n };
-  safe(S.write(up)).then(() => toast('🏆 ' + a.name));
+  act(up, '🏆 ' + a.name);
 };
 $('achSearch').oninput = renderAch;
+
+$('questTabs').onclick = (e) => { const b = e.target.closest('[data-qtab]'); if (!b) return; questTab = b.dataset.qtab; renderQuests(); };
+$('questSearch').oninput = renderQuests;
+$('questGrid').onclick = (e) => {
+  const b = e.target.closest('[data-quest]'); if (!b) return;
+  const q = QUESTS[questTab].find((x) => x.id === b.dataset.quest);
+  const on = !((state.quests || {})[questTab] || {})[q.id];
+  act({ [`quests/${questTab}/${q.id}`]: on ? S.now() : null }, `${on ? '✓' : '↺'} ${q.name}`);
+};
+$('questList').onchange = () => safe(S.write({ 'ui/questList': $('questList').value }));
+
+const ALL = { timer: true, session: true, progress: true, deaths: true, farts: true, coll: true, mission: true, quests: true, hero: true, last: true };
+const PRESETS = {
+  gameplay: { show: { ...ALL, session: false, farts: false, coll: false, mission: false, quests: false, hero: false, last: false }, achList: 'off', collList: 'off', questList: 'off', scale: 0.85 },
+  standard: { show: { ...ALL }, achList: 'off', collList: 'off', questList: 'off', scale: 1 },
+  talk: { show: { ...ALL }, achList: 'open', collList: 'off', questList: 'main', scale: 1 },
+};
+$('presets').onclick = (e) => {
+  const b = e.target.closest('[data-preset]'); if (!b) return;
+  const p = PRESETS[b.dataset.preset], up = {};
+  for (const [k, v] of Object.entries(p)) up['ui/' + k] = v;
+  act(up, `Ansicht: ${b.textContent.trim()}`);
+};
 $('achFilter').onclick = (e) => {
   const b = e.target.closest('[data-f]'); if (!b) return;
   achFilter = b.dataset.f;
@@ -346,18 +447,18 @@ $('collTiles').onclick = (e) => {
   const up = { [`collectibles/${c.key}/${i}`]: on || null };
   const after = Object.entries(set).filter(([k, v]) => v && k !== i).length + (on ? 1 : 0);
   if (on && after >= c.total && $('withPopup').checked) up.popup = { kind: 'coll', id: c.key, ts: S.now() };
-  safe(S.write(up));
+  act(up, `${c.icon} ${c.names ? itemLabel(c, i - 1) : c.label + ' #' + i} ${on ? 'gefunden' : 'entfernt'}`);
 };
 $('collAll').onclick = () => {
   const c = COLLECTIBLES.find((x) => x.key === collTab);
   if (!confirm(`Alle ${c.total} ${c.label} als gefunden markieren?`)) return;
   const obj = {}; for (let i = 1; i <= c.total; i++) obj[i] = true;
-  safe(S.write({ ['collectibles/' + c.key]: obj }));
+  act({ ['collectibles/' + c.key]: obj }, `${c.label}: alle markiert`);
 };
 $('collNone').onclick = () => {
   const c = COLLECTIBLES.find((x) => x.key === collTab);
   if (!confirm(`${c.label} komplett zurücksetzen?`)) return;
-  safe(S.write({ ['collectibles/' + c.key]: null }));
+  act({ ['collectibles/' + c.key]: null }, `${c.label} zurückgesetzt`);
 };
 
 // Anzeige
@@ -385,7 +486,7 @@ $('importFile').onchange = async () => {
   try {
     const data = JSON.parse(await f.text());
     if (!confirm('Aktuellen Stand durch das Backup ersetzen?')) return;
-    delete data.popup;
+    delete data.popup; data.presence = state.presence || null;
     await S.replaceAll(data); toast('Backup geladen');
   } catch (e) { toast('Backup ungültig'); }
   $('importFile').value = '';
@@ -393,7 +494,7 @@ $('importFile').onchange = async () => {
 $('resetAll').onclick = () => {
   if (!confirm('Wirklich ALLES zurücksetzen (Erfolge, Sammelobjekte, Timer, Zähler)?')) return;
   if (!confirm('Sicher? Vorher lieber ein Backup ziehen.')) return;
-  safe(S.replaceAll({ ui: state.ui || null }));
+  safe(S.replaceAll({ ui: state.ui || null, presence: state.presence || null }));
 };
 
 $('copyLink').onclick = async () => { try { await navigator.clipboard.writeText(overlayUrl); toast('Overlay-Link kopiert'); } catch { prompt('Overlay-Link:', overlayUrl); } };
@@ -403,8 +504,8 @@ $('openOverlay').onclick = () => window.open(overlayUrl, '_blank');
 document.addEventListener('keydown', (e) => {
   if (e.target.matches('input, select, textarea') || e.ctrlKey || e.altKey || e.metaKey || $('app').hidden) return;
   const k = e.key.toLowerCase();
-  if (k === 'd') { safe(S.add('deaths', e.shiftKey ? -1 : 1)); e.preventDefault(); }
-  else if (k === 'f') { safe(S.add('farts', e.shiftKey ? -1 : 1)); e.preventDefault(); }
+  if (k === 'd') { count('deaths', e.shiftKey ? -1 : 1); e.preventDefault(); }
+  else if (k === 'f') { count('farts', e.shiftKey ? -1 : 1); e.preventDefault(); }
   else if (e.code === 'Space' && !e.target.matches('button')) { running() ? timerPause() : timerStart(); e.preventDefault(); }
 });
 

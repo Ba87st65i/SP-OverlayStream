@@ -30,7 +30,7 @@ let localState = {};
 
 export const now = () => Date.now() + offset;
 
-export async function init({ onConnection } = {}) {
+export async function init({ onConnection, presence } = {}) {
   if (isLocal) {
     localState = readLocal();
     window.addEventListener('storage', (e) => {
@@ -49,7 +49,15 @@ export async function init({ onConnection } = {}) {
   const db = dbM.getDatabase(app);
   fb = { ...dbM, db, root: dbM.ref(db, `${DB_PATH}/${key}`) };
   dbM.onValue(dbM.ref(db, '.info/serverTimeOffset'), (s) => { offset = s.val() || 0; });
-  dbM.onValue(dbM.ref(db, '.info/connected'), (s) => onConnection && onConnection(!!s.val()));
+  // Präsenz: das Overlay meldet sich an; beim Schließen/Verbindungsabbruch entfernt Firebase den Eintrag.
+  const presRef = presence ? dbM.ref(db, `${DB_PATH}/${key}/presence/${Math.random().toString(36).slice(2, 10)}`) : null;
+  dbM.onValue(dbM.ref(db, '.info/connected'), (s) => {
+    const on = !!s.val();
+    if (on && presRef) {
+      dbM.onDisconnect(presRef).remove().then(() => dbM.set(presRef, { since: dbM.serverTimestamp() }));
+    }
+    onConnection && onConnection(on);
+  });
   dbM.onValue(fb.root, (s) => { localState = s.val() || {}; emit(); });
 }
 
@@ -126,9 +134,10 @@ export function fmtTime(ms) {
 // Standard-Anzeigeeinstellungen
 export const DEFAULT_UI = {
   pos: 'tl', scale: 1,
-  show: { timer: true, session: true, progress: true, deaths: true, farts: true, coll: true, mission: true, hero: true, last: true },
+  show: { timer: true, session: true, progress: true, deaths: true, farts: true, coll: true, mission: true, quests: true, hero: true, last: true },
   achList: 'off',      // off | open | done | all
   collList: 'off',     // off | cycle | <collectible key>
+  questList: 'off',    // off | main | side
   popup: true, sound: true,
 };
 export function ui(state) {
